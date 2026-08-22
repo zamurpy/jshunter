@@ -44,6 +44,13 @@ $ python3 jshunter.py https://target.com -d 3 -o results.txt
 - **Bug mode (`--bug`)** — seeds the crawl from `robots.txt` and
   `sitemap.xml`, and probes every JS file for an exposed `.js.map`
   source map to mine for extra routes
+- **Headless render mode (`--render`)** — uses a real Chromium browser
+  (via Playwright) instead of raw HTTP requests. It actually executes
+  the page's JavaScript, so it sees routes and content that only exist
+  after a React/Vue/Angular app renders, and records every
+  `fetch()`/XHR call the app fires while loading. This is the mode you
+  want for modern SPAs — the default HTTP-only crawl can't see anything
+  that isn't in the server's raw HTML response.
 - **Endpoint validation** — `--validate` hits every discovered endpoint
   and reports its live status code
 - **Secret scanning** — `--secrets` flags likely hardcoded API keys /
@@ -70,6 +77,24 @@ pip install requests beautifulsoup4 --break-system-packages
 Works fine on Termux (Android) — that's what it was actually built and
 tested on day to day.
 
+### Optional: headless render mode (`--render`)
+
+For SPAs (React/Vue/Angular/Svelte), the default HTTP crawl can't see
+anything that only appears after JavaScript runs. `--render` fixes that
+by driving a real Chromium instance:
+
+```bash
+pip install playwright --break-system-packages
+playwright install chromium
+```
+
+It's slower and heavier than the default mode (a real browser has to
+load and execute every page), and runs single-threaded — Playwright's
+sync API can't be shared across worker threads safely, so rendering is
+sequential by design rather than parallel. Use it when you know or
+suspect the target is a client-rendered app; skip it for traditional
+server-rendered sites where it just adds overhead for no benefit.
+
 ## Usage
 
 ```bash
@@ -95,6 +120,7 @@ usage: jshunter [-h] [-d N] [--external] [--secrets] [--validate]
 | `--secrets` | Flag likely hardcoded API keys/tokens found in JS. |
 | `--validate` | Send a live request to every discovered endpoint and report its status code. |
 | `--bug` | Deep discovery mode: seeds from `robots.txt`/`sitemap.xml`, probes every JS file for an exposed `.js.map` source map. Finds noticeably more than a plain crawl. |
+| `--render` | Use a real headless Chromium browser instead of raw HTTP requests — executes JavaScript, so it sees SPA routes and every `fetch()`/XHR call the app makes. The right choice for React/Vue/Angular targets. Requires Playwright (see Install). |
 
 ### Performance / evasion
 
@@ -130,6 +156,12 @@ python3 jshunter.py https://target.com -d 2 --include-subdomains --validate -o r
 python3 jshunter.py https://target.com -d 3 --bug --include-subdomains --nuclei-out urls.txt
 nuclei -l urls.txt -t ~/nuclei-templates/
 
+# target is a React/Vue/Angular SPA — plain HTTP crawl finds almost nothing
+python3 jshunter.py https://target.com -d 3 --render --include-subdomains -o results.txt
+
+# SPA + everything else combined, going as deep as possible
+python3 jshunter.py https://target.com -d 5 --render --bug --include-subdomains --validate --nuclei-out urls.txt
+
 # quick single-host look, nothing fancy
 python3 jshunter.py https://target.com -d 1 -o results.txt
 
@@ -141,6 +173,9 @@ python3 jshunter.py https://target.com -d 2 --proxy http://127.0.0.1:8080 --secr
 
 # long scan you stopped halfway — pick back up later
 python3 jshunter.py https://target.com -d 4 -o results.txt --resume
+
+# routed through a proxy chain
+proxychains4 python3 jshunter.py https://target.com -d 2 -o results.txt
 ```
 
 ### Scope cheat sheet
@@ -150,6 +185,18 @@ python3 jshunter.py https://target.com -d 4 -o results.txt --resume
 | default | only the exact host you gave it — `app.target.com` stays on `app.target.com` |
 | `--include-subdomains` | also follows `api.target.com`, `static.target.com`, etc. |
 | `--external` | no domain restriction at all — follows anything, anywhere |
+
+## What this still won't catch
+
+- Endpoints only reachable behind a login/auth flow the crawler never
+  goes through
+- Routes only triggered by a specific user interaction (e.g. a chunk
+  that only loads after clicking a particular button deep in the UI)
+- GraphQL — a single `/graphql` endpoint doesn't reveal much without
+  introspecting its schema, which this tool doesn't do
+- Sites protected by aggressive bot-detection (Cloudflare/Akamai-style
+  JS challenges) may still block or flag automated traffic even with
+  `--render`
 
 ## Notes on WAF / rate limits
 
