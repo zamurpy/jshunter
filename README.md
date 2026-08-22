@@ -25,7 +25,7 @@ $ python3 jshunter.py https://target.com -d 3 -o results.txt
   pages:12   js:8   endpoints:47  secrets:0
 ```
 <p align="center">
-  <img src="img/jshunter.png" width="100%" alt="Preview JSHUNTER">
+  <img src="Img/jshunter.png" width="100%" alt="Preview JSHUNTER">
 </p>
 
 ## Features
