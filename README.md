@@ -62,7 +62,7 @@ $ python3 jshunter.py https://target.com -d 3 -o results.txt
 ## Install
 
 ```bash
-git clone https://github.com/yourusername/jshunter
+git clone https://github.com/zamurpy/jshunter
 cd jshunter
 pip install requests beautifulsoup4 --break-system-packages
 ```
